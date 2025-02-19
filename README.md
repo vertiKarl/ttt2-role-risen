@@ -4,7 +4,7 @@ The Risen is a traitor who is revived once they are confirmed by someone not on 
 
 ## Console Variables
 
-All fully configurable via the "Role Settings" Menu provided by TTT2!
+All fully configurable via the "Role Settings" Menu provided by TTT2!  
 ![picture of role settings menu](rolesettings.png)
 
 `ttt2_ris_conf_team`:
