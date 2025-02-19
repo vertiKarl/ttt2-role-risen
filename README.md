@@ -11,7 +11,7 @@ All fully configurable via the "Role Settings" Menu provided by TTT2!
 Revives the risen once their body gets confirmed by
 
 - 0: Players in team Innocent
-- 1: Players not in their team
+- 1: Players not on their team
 - 2: Anyone
 
 `ttt2_ris_needs_corpse`:
