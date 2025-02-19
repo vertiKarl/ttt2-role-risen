@@ -7,7 +7,7 @@ The Risen is a traitor who is revived once they are confirmed by someone not on 
 All fully configurable via the "Role Settings" Menu provided by TTT2!  
 ![picture of role settings menu](assets/rolesettings.png)
 
-`ttt2_ris_conf_team`:
+`ttt2_ris_conf_team`:  
 Revives the risen once their body gets confirmed by
 
 - 0: Players in team Innocent
