@@ -13,10 +13,12 @@ Revives the risen once their body gets confirmed by
 - 0: Players in team Innocent
 - 1: Players not in their team
 - 2: Anyone
-  `ttt2_ris_needs_corpse`:
+
+`ttt2_ris_needs_corpse`:
 - 0: The Risen does not needs a corpse to revive
 - 1: The Risen needs a corpse to revive
-  `ttt2_ris_revive_time`:
+
+`ttt2_ris_revive_time`:
 - [0..99]: The time in seconds it takes for the risen to be revived
 
 #### Credits
