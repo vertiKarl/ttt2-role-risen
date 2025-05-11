@@ -21,6 +21,12 @@ Revives the risen once their body gets confirmed by
 `ttt2_ris_revive_time`:
 - [0..99]: The time in seconds it takes for the risen to be revived
 
+`ttt2_ris_max_revives [0..5] (default: 0)`:
+- The maximum amount of revives per round
+
+`ttt2_ris_covert [0,1] (default: 0)`:
+- Wether or not the Risen should be revived if their corpse was searched covertly
+
 #### Credits
 
 - Icon grabbed from: [pngall](https://www.pngall.com/phoenix-png/download/11390/)
