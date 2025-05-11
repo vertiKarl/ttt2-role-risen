@@ -3,122 +3,198 @@
 -- ROLE.index = ROLE_TRAITOR
 
 if SERVER then
-  AddCSLuaFile()
+	AddCSLuaFile()
 
-  resource.AddFile("materials/vgui/ttt/dynamic/roles/icon_ris.vmt")
+	resource.AddFile("materials/vgui/ttt/dynamic/roles/icon_ris.vmt")
 end
 
 function ROLE:PreInitialize()
-  self.color = Color(255, 94, 13)
+	self.color = Color(255, 94, 13)
 
-  self.abbr = "ris" -- abbreviation
-  self.surviveBonus = 0.5 -- bonus multiplier for every survive while another player was killed
-  self.scoreKillsMultiplier = 5 -- multiplier for kill of player of another team
-  self.scoreTeamKillsMultiplier = -16 -- multiplier for teamkill
-  self.preventFindCredits = false
-  self.preventKillCredits = false
-  self.preventTraitorAloneCredits = false
+	self.abbr = "ris" -- abbreviation
+	self.surviveBonus = 0.5 -- bonus multiplier for every survive while another player was killed
+	self.scoreKillsMultiplier = 5 -- multiplier for kill of player of another team
+	self.scoreTeamKillsMultiplier = -16 -- multiplier for teamkill
+	self.preventFindCredits = false
+	self.preventKillCredits = false
+	self.preventTraitorAloneCredits = false
 
-  self.isOmniscientRole = true
+	self.isOmniscientRole = true
 
-  self.defaultTeam = TEAM_TRAITOR
+	self.defaultTeam = TEAM_TRAITOR
 
-  self.conVarData = {
-    pct = 0.17, -- necessary: percentage of getting this role selected (per player)
-    maximum = 1, -- maximum amount of roles in a round
-    minPlayers = 6, -- minimum amount of players until this role is able to get selected
-    credits = 0, -- the starting credits of a specific role
-    togglable = true, -- option to toggle a role for a client if possible (F1 menu)
-    random = 50,
-    traitorButton = 1, -- can use traitor buttons
-    shopFallback = SHOP_FALLBACK_TRAITOR
-  }
+	self.conVarData = {
+		pct = 0.17, -- necessary: percentage of getting this role selected (per player)
+		maximum = 1, -- maximum amount of roles in a round
+		minPlayers = 6, -- minimum amount of players until this role is able to get selected
+		credits = 0, -- the starting credits of a specific role
+		togglable = true, -- option to toggle a role for a client if possible (F1 menu)
+		random = 50,
+		traitorButton = 1, -- can use traitor buttons
+		shopFallback = SHOP_FALLBACK_TRAITOR,
+	}
 end
 
 -- now link this subrole with its baserole
 function ROLE:Initialize()
-  roles.SetBaseRole(self, ROLE_TRAITOR)
+	roles.SetBaseRole(self, ROLE_TRAITOR)
 end
 
 if SERVER then
+	local function risenLogic(confirmingPlayer, deadPlayer)
+		confTeam = GetConVar("ttt2_ris_conf_team"):GetInt()
 
-  hook.Add("TTTBodyFound", "RisenConfirm", function (confirmingPlayer, deadPlayer)
-    if (
-      -- Only handle if body is of a player with the risen role
-      deadPlayer:GetSubRole() ~= ROLE_RISEN or
-      -- ignore invalid objects
-      not IsValid(deadPlayer) or
-      not IsValid(confirmingPlayer)
-    ) then return end
+		-- Ignore revive if the player who confirms the body is in the same team
+		if confTeam == 0 then -- Only revive if confirming player is in TEAM_INNOCENT
+			if confirmingPlayer:GetTeam() ~= TEAM_INNOCENT then
+				return
+			end
+		elseif confTeam == 1 then -- Only revive if confirming player is not in the same team
+			if confirmingPlayer:GetTeam() == deadPlayer:GetTeam() then
+				return
+			end
+		end -- otherwise, always revive
 
-    confTeam = GetConVar("ttt2_ris_conf_team"):GetInt()
+		-- skip if player is already reviving
+		if deadPlayer:IsReviving() then
+			print("[risen] Player", player, "is already reviving, skipping")
+			return
+		end
 
-    -- Ignore revive if the player who confirms the body is in the same team
-    if confTeam == 0 then -- Only revive if confirming player is in TEAM_INNOCENT
-      if confirmingPlayer:GetTeam() ~= TEAM_INNOCENT then return end
-    elseif confTeam == 1 then -- Only revive if confirming player is not in the same team
-      if confirmingPlayer:GetTeam() == deadPlayer:GetTeam() then return end
-    end -- otherwise, always revive
+		-- Handling of optional max number of revives
+		local maxRevives = GetConVar("ttt2_ris_max_revives"):GetInt()
+		if maxRevives ~= 0 then
+			-- add risenRevives property to player table
+			if not deadPlayer.risenRevives then
+				deadPlayer.risenRevives = 0
+			end
 
-    print("[risen] Reviving player", deadPlayer)
+			local revives = deadPlayer.risenRevives
 
-    spawnpoint = plyspawn.GetRandomSafePlayerSpawnPoint(deadPlayer)
-    local reviveTime = GetConVar("ttt2_ris_revive_time"):GetInt()
-    local needsCorpse = GetConVar("ttt2_ris_needs_corpse"):GetBool()
+			if revives >= maxRevives then
+				print(
+					"[risen] Player ",
+					deadPlayer,
+					"reached max number of revives, not reviving. (" .. revives .. "/" .. maxRevives .. ")"
+				)
+				return
+			end
+			deadPlayer.risenRevives = deadPlayer.risenRevives + 1
+		end
 
-    deadPlayer:Revive(
-      reviveTime,
-      nil,
-      nil,
-      needsCorpse,
-      REVIVAL_BLOCK_AS_ALIVE,
-      nil,
-      spawnpoint.pos,
-      spawnpoint.ang
-    )
-  end)
+		print("[risen] Reviving player", deadPlayer)
+
+		local spawnpoint = plyspawn.GetRandomSafePlayerSpawnPoint(deadPlayer)
+		local reviveTime = GetConVar("ttt2_ris_revive_time"):GetInt()
+		local needsCorpse = GetConVar("ttt2_ris_needs_corpse"):GetBool()
+
+		deadPlayer:Revive(
+			reviveTime,
+			nil,
+			nil,
+			needsCorpse,
+			REVIVAL_BLOCK_AS_ALIVE,
+			nil,
+			spawnpoint.pos,
+			spawnpoint.ang
+		)
+	end
+
+	-- this is mostly used as a fallback for the following situation:
+	-- player covertly searches body and then clicks "confirm"
+	-- triggers BodyFound but CanSearchCorpse was bypassed (if ttt2_ris_covert is 0)
+	hook.Add("TTTBodyFound", "RisenConfirm", function(confirmingPlayer, deadPlayer)
+		if
+			-- Only handle if body is of a player with the risen role
+			deadPlayer:GetSubRole() ~= ROLE_RISEN
+			-- ignore invalid objects
+			or not IsValid(deadPlayer)
+			or not IsValid(confirmingPlayer)
+		then
+			return
+		end
+
+		risenLogic(confirmingPlayer, deadPlayer)
+	end)
+
+	hook.Add("TTTCanSearchCorpse", "RisenConfirm", function(confirmingPlayer, rag, isCovert, isLongRange)
+		-- this hook is only used when searching bodies covertly, on confirm TTTBodyFound triggers
+		-- also ignore if body was already confirmed
+		if not isCovert or not GetConVar("ttt2_ris_covert"):GetBool() or CORPSE.GetFound(rag, false) then
+			return
+		end
+
+		if not IsValid(rag) or not IsValid(confirmingPlayer) or not rag:IsPlayerRagdoll() then
+			return
+		end
+
+		local deadPlayer = CORPSE.GetPlayer(rag)
+		if not IsValid(deadPlayer) or deadPlayer:GetSubRole() ~= ROLE_RISEN then
+			return
+		end
+
+		-- reveal role to everyone on covert search (triggers TTTBodyFound hook above)
+		print("[risen] Identifying body of player", deadPlayer)
+		CORPSE.IdentifyBody(confirmingPlayer, rag)
+	end)
 end
 
 if CLIENT then
+	function ROLE:AddToSettingsMenu(parent)
+		local form = vgui.CreateTTT2Form(parent, "header_roles_additional")
+		local translate = LANG.TryTranslation
 
-  function ROLE:AddToSettingsMenu(parent)
-    local form = vgui.CreateTTT2Form(parent, "header_roles_additional")
-    local translate = LANG.TryTranslation
+		local choices = {
+			translate("label_ttt2_ris_conf_team_innocent"),
+			translate("label_ttt2_ris_conf_team_notsame"),
+			translate("label_ttt2_ris_conf_team_anyone"),
+		}
 
-    local choices = {
-      translate("label_ttt2_ris_conf_team_innocent"),
-      translate("label_ttt2_ris_conf_team_notsame"),
-      translate("label_ttt2_ris_conf_team_anyone")
-    }
+		form:MakeCheckBox({
+			serverConvar = "ttt2_ris_needs_corpse",
+			label = "label_ttt2_ris_needs_corpse",
+		})
 
-    form:MakeCheckBox({
-      serverConvar = "ttt2_ris_needs_corpse",
-      label = "label_ttt2_ris_needs_corpse"
-    })
+		form:MakeCheckBox({
+			serverConvar = "ttt2_ris_covert",
+			label = "label_ttt2_ris_covert",
+		})
 
-    form:MakeSlider({
-      serverConvar = "ttt2_ris_revive_time",
-      label = "label_ttt2_ris_revive_time",
-      min = GetConVar("ttt2_ris_revive_time"):GetMin(),
-      max = GetConVar("ttt2_ris_revive_time"):GetMax(),
-      decimal = 0
-    })
+		form:MakeSlider({
+			serverConvar = "ttt2_ris_revive_time",
+			label = "label_ttt2_ris_revive_time",
+			min = GetConVar("ttt2_ris_revive_time"):GetMin(),
+			max = GetConVar("ttt2_ris_revive_time"):GetMax(),
+			decimal = 0,
+		})
 
-    form:MakeComboBox({
-      label = "label_ttt2_ris_conf_team",
-      choices = choices,
-      selectName = choices[GetConVar("ttt2_ris_conf_team"):GetInt() + 1],
-      OnChange = function(value)
-        local index = -1
-        for i,choice in pairs(choices) do
-          if choice == value then index = i end
-        end
+		form:MakeSlider({
+			serverConvar = "ttt2_ris_max_revives",
+			label = "label_ttt2_ris_max_revives",
+			min = GetConVar("ttt2_ris_max_revives"):GetMin(),
+			max = GetConVar("ttt2_ris_max_revives"):GetMax(),
+			decimal = 0,
+		})
 
-        if (index == -1) then return end
+		form:MakeComboBox({
+			label = "label_ttt2_ris_conf_team",
+			choices = choices,
+			selectName = choices[GetConVar("ttt2_ris_conf_team"):GetInt() + 1],
+			OnChange = function(value)
+				local index = -1
+				for i, choice in pairs(choices) do
+					if choice == value then
+						index = i
+					end
+				end
 
-        index = index - 1 -- switch from lua 1-based indexing to cvar range 
-        cvars.ChangeServerConVar("ttt2_ris_conf_team", index)
-      end
-    })
-  end
+				if index == -1 then
+					return
+				end
+
+				index = index - 1 -- switch from lua 1-based indexing to cvar range
+				cvars.ChangeServerConVar("ttt2_ris_conf_team", index)
+			end,
+		})
+	end
 end
